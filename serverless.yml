@@ -1,0 +1,32 @@
+service: skeleton-go
+
+provider:
+  name: aws
+  runtime: go1.x
+  region: us-east-1
+  memorySize: 128
+  stage: ${opt:stage, 'dev'}
+  apiGateway:
+    restApiId: ${env:API_ID, '{api_id}'}
+    restApiRootResourceId: ${env:ROOT_RESOURCE_ID, 'resource_id'}
+
+package:
+  exclude:
+    - ./**
+  include:
+    - ./bin/**
+
+functions:
+  api:
+    handler: bin/api
+    events:
+      - http:
+          path: /{id}
+          method: get
+          cors: true
+      - http:
+          path: /{id}/error
+          method: get
+          cors: true
+    environment:
+      DEPLOY_MODE: release

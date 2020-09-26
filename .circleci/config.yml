@@ -1,0 +1,56 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.14
+    working_directory: ~/go/src/github.com/maxidelgado/skeleton-go
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-dependencies-cache-{{ checksum "go.sum" }}
+            - go-dependencies-cache
+      - run: go mod vendor
+      - run: go test -v ./...
+      - run: env GOOS=linux go build -ldflags="-s -w" -o bin/api ./main.go
+      - persist_to_workspace:
+          root: bin
+          paths:
+            - api
+      - save_cache:
+          paths:
+            - vendor
+          key: go-dependencies-cache-{{ checksum "go.sum" }}
+  deploy:
+    docker:
+      - image: circleci/node:12.18.3
+    working_directory: ~/go/src/github.com/maxidelgado/skeleton-go
+    steps:
+      - checkout
+      - attach_workspace:
+          at: bin
+      - run:
+          name: Install Serverless CLI and dependencies
+          command: |
+            sudo npm i -g serverless
+            npm install
+      - save_cache:
+          paths:
+            - node_modules
+          key: dependencies-node-{{ checksum "package.json" }}
+      - run:
+          name: Configure credentials
+          command: sls config credentials --stage dev --provider aws --key ${AWS_ACCESS_KEY_ID} --secret ${AWS_SECRET_ACCESS_KEY} --region ${AWS_REGION}
+      - run:
+          name: Deploy application
+          command: sls deploy -v
+
+workflows:
+  version: 2
+  build_and_deploy:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
+          context: maxidelgado
